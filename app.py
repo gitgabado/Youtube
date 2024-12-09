@@ -2,7 +2,15 @@ import streamlit as st
 import pandas as pd
 from googleapiclient.discovery import build
 import re
-import nltk
+
+# Install and import nltk and handle missing data
+try:
+    import nltk
+    nltk.download('stopwords')
+    nltk.download('wordnet')
+except ImportError:
+    st.error("nltk module not found. Please install it using `pip install nltk`.")
+
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import string
@@ -14,9 +22,6 @@ from sklearn.cluster import KMeans
 import plotly.express as px
 import openai
 
-nltk.download('stopwords')
-nltk.download('wordnet')
-
 st.title("YouTube Comments Analysis")
 
 # Input fields for API keys and video URL
@@ -24,6 +29,7 @@ api_key = st.text_input("Enter your YouTube Data API Key", type="password")
 video_url = st.text_input("Enter the YouTube video URL")
 openai_api_key = st.text_input("Enter your OpenAI API Key (for Summarization)", type="password")
 
+# Helper Functions
 def extract_video_id(url):
     regex_patterns = [
         r"(?:v=)([0-9A-Za-z_-]{11})",
@@ -77,6 +83,7 @@ if api_key and video_url:
                         df = st.session_state['comments']
                         comments_text = df['comment'].tolist()
 
+                        # Preprocessing
                         stop_words = set(stopwords.words('english'))
                         lemmatizer = WordNetLemmatizer()
 
@@ -91,6 +98,7 @@ if api_key and video_url:
                         preprocessed = [preprocess_text(c) for c in comments_text if c.strip()]
                         preprocessed = [p for p in preprocessed if p.strip()]
 
+                        # Topic Modeling
                         tokenized = [p.split() for p in preprocessed]
                         dictionary = Dictionary(tokenized)
                         dictionary.filter_extremes(no_below=10, no_above=0.5)
@@ -107,6 +115,7 @@ if api_key and video_url:
                         for i, topic in topics:
                             st.write(f"**Topic {i}:** {topic}")
 
+                        # Embedding and Clustering
                         model_name = 'all-MiniLM-L6-v2'
                         embed_model = SentenceTransformer(model_name)
                         embeddings = embed_model.encode(preprocessed, show_progress_bar=True)
@@ -136,9 +145,9 @@ if api_key and video_url:
                         )
                         st.plotly_chart(fig, use_container_width=True)
 
+                        # Summarization
                         if openai_api_key:
                             openai.api_key = openai_api_key
-
                             chunk_size = 1000
                             summaries = []
                             prompt_template = (
