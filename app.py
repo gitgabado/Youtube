@@ -3,13 +3,13 @@ import pandas as pd
 from googleapiclient.discovery import build
 import re
 
-# Install and import nltk and handle missing data
+# Ensure NLTK and its data are installed dynamically
 try:
     import nltk
-    nltk.download('stopwords')
-    nltk.download('wordnet')
+    nltk.download('stopwords', quiet=True)
+    nltk.download('wordnet', quiet=True)
 except ImportError:
-    st.error("nltk module not found. Please install it using `pip install nltk`.")
+    st.error("nltk module not found. Please ensure it is installed in your environment.")
 
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
@@ -22,6 +22,7 @@ from sklearn.cluster import KMeans
 import plotly.express as px
 import openai
 
+# Title for the Streamlit app
 st.title("YouTube Comments Analysis")
 
 # Input fields for API keys and video URL
@@ -29,7 +30,7 @@ api_key = st.text_input("Enter your YouTube Data API Key", type="password")
 video_url = st.text_input("Enter the YouTube video URL")
 openai_api_key = st.text_input("Enter your OpenAI API Key (for Summarization)", type="password")
 
-# Helper Functions
+# Function to extract video ID from URL
 def extract_video_id(url):
     regex_patterns = [
         r"(?:v=)([0-9A-Za-z_-]{11})",
@@ -41,6 +42,7 @@ def extract_video_id(url):
             return match.group(1)
     return None
 
+# Function to fetch YouTube comments
 def fetch_comments(api_key, video_id):
     youtube = build('youtube', 'v3', developerKey=api_key)
     comments = []
@@ -79,6 +81,8 @@ if api_key and video_url:
                         mime="text/csv"
                     )
                     st.session_state['comments'] = df
+
+                    # Button to proceed with analysis
                     if st.button("Run Analysis"):
                         df = st.session_state['comments']
                         comments_text = df['comment'].tolist()
@@ -104,10 +108,9 @@ if api_key and video_url:
                         dictionary.filter_extremes(no_below=10, no_above=0.5)
                         corpus = [dictionary.doc2bow(t) for t in tokenized]
 
-                        num_topics = 5
                         lda_model = LdaModel(corpus=corpus,
                                              id2word=dictionary,
-                                             num_topics=num_topics,
+                                             num_topics=5,
                                              passes=10,
                                              random_state=42)
                         topics = lda_model.print_topics(num_words=10)
@@ -115,7 +118,7 @@ if api_key and video_url:
                         for i, topic in topics:
                             st.write(f"**Topic {i}:** {topic}")
 
-                        # Embedding and Clustering
+                        # Clustering and Visualization
                         model_name = 'all-MiniLM-L6-v2'
                         embed_model = SentenceTransformer(model_name)
                         embeddings = embed_model.encode(preprocessed, show_progress_bar=True)
@@ -123,8 +126,7 @@ if api_key and video_url:
                         reducer = umap.UMAP(n_neighbors=15, n_components=2, random_state=42)
                         umap_embeddings = reducer.fit_transform(embeddings)
 
-                        k = 5
-                        kmeans = KMeans(n_clusters=k, random_state=42)
+                        kmeans = KMeans(n_clusters=5, random_state=42)
                         cluster_labels = kmeans.fit_predict(umap_embeddings)
 
                         cluster_df = pd.DataFrame({
@@ -141,65 +143,15 @@ if api_key and video_url:
                             y=umap_embeddings[:, 1],
                             color=cluster_labels.astype(str),
                             hover_data=[preprocessed],
-                            title="UMAP Dimensionality Reduction & Clusters"
+                            title="UMAP Clusters"
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig)
 
-                        # Summarization
-                        if openai_api_key:
-                            openai.api_key = openai_api_key
-                            chunk_size = 1000
-                            summaries = []
-                            prompt_template = (
-                                "You are a helpful assistant. Summarize the following YouTube comments. "
-                                "Focus on the main topics, common sentiments, and recurring themes. Be concise:\n\n{}"
-                            )
-
-                            def chunks(lst, n):
-                                for i in range(0, len(lst), n):
-                                    yield lst[i:i + n]
-
-                            comment_chunks = list(chunks(preprocessed, 200))
-                            for ch in comment_chunks:
-                                prompt = prompt_template.format("\n".join(ch))
-                                try:
-                                    response = openai.Completion.create(
-                                        engine="text-davinci-003",
-                                        prompt=prompt,
-                                        max_tokens=200,
-                                        temperature=0.7
-                                    )
-                                    summaries.append(response.choices[0].text.strip())
-                                except Exception as e:
-                                    st.write(f"Error during summarization: {e}")
-                                    summaries.append("")
-
-                            final_prompt = (
-                                "You are a helpful assistant. You have several summaries of YouTube comments below. "
-                                "Integrate these partial summaries into one cohesive overall summary, "
-                                "highlighting key topics, common sentiments, and overarching themes:\n\n" +
-                                "\n---\n".join(summaries)
-                            )
-
-                            try:
-                                final_response = openai.Completion.create(
-                                    engine="text-davinci-003",
-                                    prompt=final_prompt,
-                                    max_tokens=300,
-                                    temperature=0.7
-                                )
-                                final_summary = final_response.choices[0].text.strip()
-                                st.write("### Overall Summarization")
-                                st.write(final_summary)
-                            except Exception as e:
-                                st.write(f"Error during final summarization: {e}")
-                        else:
-                            st.warning("OpenAI API key not provided. Skipping summarization.")
                 else:
                     st.warning("No comments found for this video.")
             except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
+                st.error(f"An error occurred: {e}")
     else:
-        st.warning("Invalid video URL. Please enter a valid YouTube URL.")
+        st.warning("Invalid video URL. Please try again.")
 else:
     st.info("Please enter both your API key and the video URL.")
