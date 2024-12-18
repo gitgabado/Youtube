@@ -7,6 +7,10 @@ import openai
 # Set page config for better UI
 st.set_page_config(page_title="YouTube Comments Analyzer", layout="wide")
 
+# Ensure session_state keys exist
+if "comments" not in st.session_state:
+    st.session_state["comments"] = []
+
 # Custom CSS for a nicer look
 st.markdown("""
 <style>
@@ -38,7 +42,7 @@ h1, h2, h3 {
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar for instructions and brand
+# Sidebar for instructions and branding
 st.sidebar.title("YouTube Comments Analyzer")
 st.sidebar.markdown("""
 Use this tool to:  
@@ -82,11 +86,9 @@ def fetch_comments(api_key, video_id):
             textFormat="plainText"
         )
         response = request.execute()
-
         for item in response.get('items', []):
             comment = item['snippet']['topLevelComment']['snippet']['textDisplay']
             comments.append(comment)
-
         next_page_token = response.get('nextPageToken')
         if not next_page_token:
             break
@@ -95,9 +97,8 @@ def fetch_comments(api_key, video_id):
 # Summarization function using OpenAI ChatCompletion
 def summarize_comments(openai_api_key, comments):
     openai.api_key = openai_api_key
-    # Join comments into a single text block
-    text_block = "\n".join(comments[:500])  # Limit to first 500 comments to avoid token overload
-    # Prompt the model to summarize
+    # Limit to first 500 comments to avoid token overload
+    text_block = "\n".join(comments[:500])
     system_prompt = "You are a helpful assistant that summarizes YouTube comments into key themes, insights, and sentiments."
     user_prompt = f"Please summarize the following YouTube comments:\n{text_block}\n\nFocus on the main topics, general sentiment, and any recurring themes."
     try:
@@ -115,11 +116,9 @@ def summarize_comments(openai_api_key, comments):
     except Exception as e:
         return f"Error during summarization: {str(e)}"
 
-comments = []
-video_id = None
-
 st.markdown("### Actions")
 
+video_id = None
 if api_key and video_url:
     video_id = extract_video_id(video_url)
     if not video_id:
@@ -130,6 +129,7 @@ if api_key and video_url:
                 try:
                     comments = fetch_comments(api_key, video_id)
                     if comments:
+                        st.session_state["comments"] = comments
                         df = pd.DataFrame(comments, columns=["comment"])
                         csv = df.to_csv(index=False)
                         st.success(f"Fetched {len(comments)} comments.")
@@ -147,17 +147,16 @@ else:
     st.info("Please enter both your YouTube Data API key and the Video URL.")
 
 # Summarization section
-if comments and openai_api_key:
+if st.session_state["comments"] and openai_api_key:
     st.markdown("### Summarization")
     if st.button("Summarize Comments using ChatGPT"):
         with st.spinner("Summarizing comments..."):
-            summary = summarize_comments(openai_api_key, comments)
-            if "Error during summarization" in summary:
+            summary = summarize_comments(openai_api_key, st.session_state["comments"])
+            if summary.startswith("Error during summarization"):
                 st.error(summary)
             else:
                 st.success("Comments summarized successfully!")
                 st.markdown("**Summary:**")
                 st.write(summary)
-else:
-    if comments and not openai_api_key:
-        st.info("Enter your OpenAI API Key to enable comment summarization.")
+elif st.session_state["comments"] and not openai_api_key:
+    st.info("Enter your OpenAI API Key to enable comment summarization.")
