@@ -113,8 +113,16 @@ def summarize_comments(openai_api_key, comments):
         )
         summary = response['choices'][0]['message']['content'].strip()
         return summary
-    except openai.error.OpenAIError as e:
-        return f"Error during summarization: {str(e)}"
+    except openai.error.APIError as e:
+        return f"API Error during summarization: {str(e)}"
+    except openai.error.RateLimitError as e:
+        return f"Rate limit error: {str(e)}. Please try again later."
+    except openai.error.InvalidRequestError as e:
+        return f"Invalid request: {str(e)}"
+    except openai.error.AuthenticationError as e:
+        return f"Authentication error: {str(e)}. Please check your API key."
+    except Exception as e:
+        return f"An unexpected error occurred: {str(e)}"
 
 st.markdown("### Actions")
 
