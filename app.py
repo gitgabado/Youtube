@@ -107,11 +107,13 @@ def summarize_comments(openai_api_key, comments):
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
-            ]
+            ],
+            temperature=0.7,
+            max_tokens=300
         )
         summary = response['choices'][0]['message']['content'].strip()
         return summary
-    except Exception as e:
+    except openai.error.OpenAIError as e:
         return f"Error during summarization: {str(e)}"
 
 st.markdown("### Actions")
