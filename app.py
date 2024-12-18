@@ -99,28 +99,21 @@ def summarize_comments(openai_api_key, comments):
     openai.api_key = openai_api_key
     # Limit to first 500 comments to avoid token overload
     text_block = "\n".join(comments[:500])
-    system_prompt = "You are a helpful assistant that summarizes YouTube comments into key themes, insights, and sentiments."
-    user_prompt = f"Please summarize the following YouTube comments:\n{text_block}\n\nFocus on the main topics, general sentiment, and any recurring themes."
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant that summarizes YouTube comments into key themes, insights, and sentiments."},
+        {"role": "user", "content": f"Please summarize the following YouTube comments:\n{text_block}\n\nFocus on the main topics, general sentiment, and any recurring themes."}
+    ]
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
+            messages=messages,
             temperature=0.7,
             max_tokens=300
         )
-        summary = response['choices'][0]['message']['content'].strip()
+        summary = response.choices[0].message.content.strip()
         return summary
-    except openai.error.APIError as e:
-        return f"API Error during summarization: {str(e)}"
-    except openai.error.RateLimitError as e:
-        return f"Rate limit error: {str(e)}. Please try again later."
-    except openai.error.InvalidRequestError as e:
-        return f"Invalid request: {str(e)}"
-    except openai.error.AuthenticationError as e:
-        return f"Authentication error: {str(e)}. Please check your API key."
+    except openai.error.OpenAIError as e:
+        return f"An OpenAI error occurred: {str(e)}"
     except Exception as e:
         return f"An unexpected error occurred: {str(e)}"
 
@@ -160,7 +153,7 @@ if st.session_state["comments"] and openai_api_key:
     if st.button("Summarize Comments using ChatGPT"):
         with st.spinner("Summarizing comments..."):
             summary = summarize_comments(openai_api_key, st.session_state["comments"])
-            if summary.startswith("Error during summarization"):
+            if summary.startswith("An OpenAI error occurred"):
                 st.error(summary)
             else:
                 st.success("Comments summarized successfully!")
