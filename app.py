@@ -94,7 +94,7 @@ def fetch_comments(api_key, video_id):
             break
     return comments
 
-# Summarization function using OpenAI ChatCompletion
+# Summarization function using OpenAI Chat API (updated for openai>=1.0.0)
 def summarize_comments(openai_api_key, comments):
     openai.api_key = openai_api_key
     # Limit to first 500 comments to avoid token overload
@@ -103,15 +103,13 @@ def summarize_comments(openai_api_key, comments):
     user_prompt = f"Please summarize the following YouTube comments:\n{text_block}\n\nFocus on the main topics, general sentiment, and any recurring themes."
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4",
             messages=[
-                {"role":"system", "content": system_prompt},
-                {"role":"user", "content": user_prompt}
-            ],
-            max_tokens=300,
-            temperature=0.7
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
         )
-        summary = response.choices[0].message.content.strip()
+        summary = response['choices'][0]['message']['content'].strip()
         return summary
     except Exception as e:
         return f"Error during summarization: {str(e)}"
